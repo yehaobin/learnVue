@@ -59,10 +59,6 @@ export function initState (vm: Component) {
   if (opts.watch && opts.watch !== nativeWatch) {
     initWatch(vm, opts.watch)
   }
-  // 三种watcher的执行顺序
-  // computed watcher -> normal watcher -> render watcher
-  // 这样安排是有原因的，这样就能尽可能的保证，在更新组件视图的时候，
-  // computed 属性已经是最新值了，如果 render-watcher 排在 computed-render 前面，就会导致页面更新的时候 computed 值为旧数据。
 }
 
 function initProps (vm: Component, propsOptions: Object) {
@@ -90,6 +86,7 @@ function initProps (vm: Component, propsOptions: Object) {
         )
       }
       defineReactive(props, key, value, () => {
+        // 子组件直接修改属性时 弹出警告
         if (!isRoot && !isUpdatingChildComponent) {
           warn(
             `Avoid mutating a prop directly since the value will be ` +
@@ -114,7 +111,7 @@ function initProps (vm: Component, propsOptions: Object) {
 }
 
 function initData (vm: Component) {
-  let data = vm.$options.data // vm.$options 是访问自定属性，此处就是vue实例中的 this.$data
+  let data = vm.$options.data // vm.$options 是访问自定属性
   data = vm._data = typeof data === 'function'
     ? getData(data, vm)
     : data || {}
@@ -251,7 +248,7 @@ function createComputedGetter (key) {
     const watcher = this._computedWatchers && this._computedWatchers[key]
     if (watcher) {
       if (watcher.dirty) {
-        // 调用计算属性的get方法，进行依赖收集，与计算属性相关的data的dep会添加当前的computer watcher
+        // 调用计算属性的get方法，进行依赖收集，与计算属性相关的data的dep会添加当前的computed watcher
         // 只有依赖的data发生变化时，才会重新求值
         watcher.evaluate() 
       }
@@ -299,6 +296,7 @@ function initMethods (vm: Component, methods: Object) {
 }
 
 function initWatch (vm: Component, watch: Object) {
+  // https://cn.vuejs.org/v2/api/#watch
   for (const key in watch) {
     const handler = watch[key]
     if (Array.isArray(handler)) {
@@ -359,12 +357,16 @@ export function stateMixin (Vue: Class<Component>) {
     options?: Object
   ): Function {
     const vm: Component = this
+    // 先判断 cb 如果是一个对象，则调用 createWatcher 方法，
+    // 这是因为 $watch 方法是用户可以直接调用的，它可以传递一个对象，也可以传递函数。
     if (isPlainObject(cb)) {
       return createWatcher(vm, expOrFn, cb, options)
     }
     options = options || {}
     options.user = true
+    // new 一个 user watcher 时，会调用变量的 getter 进行依赖收集
     const watcher = new Watcher(vm, expOrFn, cb, options)
+    // 有 immediate 参数的时候会立即执行回调
     if (options.immediate) {
       try {
         cb.call(vm, watcher.value)
@@ -372,7 +374,9 @@ export function stateMixin (Vue: Class<Component>) {
         handleError(error, vm, `callback for immediate watcher "${watcher.expression}"`)
       }
     }
+    // 返回一个取消观察函数，用来停止触发回调
     return function unwatchFn () {
+      // 将自身从所有依赖收集订阅列表删除
       watcher.teardown()
     }
   }

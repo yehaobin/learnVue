@@ -45,6 +45,8 @@ export class Observer {
     this.vmCount = 0
     def(value, '__ob__', this)
     if (Array.isArray(value)) {
+      // 先对数组进行一个增强操作，实际上是在数组的原型链上定义一系列操作方法，以此实现数组变更的检测
+      // 判断浏览器支不支持__proto__，支持就直接挂载在数组对象本身上
       if (hasProto) {
         protoAugment(value, arrayMethods)
       } else {
@@ -154,7 +156,8 @@ export function defineReactive (
   }
 
   // cater for pre-defined getter/setters
-  // 如果之前该对象已经预设了getter以及setter函数则将其取出来，新定义的getter/setter中会将其执行，保证不会覆盖之前已经定义的getter/setter。
+  // 如果之前该对象已经预设了getter以及setter函数则将其取出来，
+  // 新定义的getter/setter中会将其执行，保证不会覆盖之前已经定义的getter/setter。
   const getter = property && property.get
   const setter = property && property.set
   if ((!getter || setter) && arguments.length === 2) {

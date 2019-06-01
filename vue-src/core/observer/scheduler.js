@@ -16,14 +16,15 @@ export const MAX_UPDATE_COUNT = 100
 const queue: Array<Watcher> = []
 const activatedChildren: Array<Component> = []
 let has: { [key: number]: ?true } = {}
-let circular: { [key: number]: number } = {}
+let circular: { [key: number]: number } = {} // 用于循环更新
 let waiting = false
 let flushing = false
-let index = 0
+let index = 0 // 当前 watcher 的一个索引
 
 /**
  * Reset the scheduler's state.
  */
+// 重置调度者的状态
 function resetSchedulerState () {
   index = queue.length = activatedChildren.length = 0
   has = {}
@@ -81,6 +82,8 @@ function flushSchedulerQueue () {
 
   // do not cache length because more watchers might be pushed
   // as we run existing watchers
+  // 这里没有先缓存queue的length,而是每次循环重新算一次queue.length，
+  // 因为在执行处理现有watcher对象时，更多的watcher对象可能会被push进queue
   for (index = 0; index < queue.length; index++) {
     watcher = queue[index]
     if (watcher.before) {
@@ -90,6 +93,16 @@ function flushSchedulerQueue () {
     has[id] = null
     watcher.run()
     // in dev build, check and stop circular updates.
+    /*
+      开发环境下会检测是否存在死循环
+      比如:
+      watch: {
+        test () {
+          this.test++;
+        }
+      }
+      持续执行了一百次watch代表可能存在死循环
+    */
     if (process.env.NODE_ENV !== 'production' && has[id] != null) {
       circular[id] = (circular[id] || 0) + 1
       if (circular[id] > MAX_UPDATE_COUNT) {
@@ -128,6 +141,7 @@ function callUpdatedHooks (queue) {
   while (i--) {
     const watcher = queue[i]
     const vm = watcher.vm
+    // 调用updated钩子
     if (vm._watcher === watcher && vm._isMounted && !vm._isDestroyed) {
       callHook(vm, 'updated')
     }

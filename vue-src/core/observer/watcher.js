@@ -23,6 +23,10 @@ let uid = 0
  * and fires callback when the expression value changes.
  * This is used for both the $watch() api and directives.
  */
+// 三种watcher的执行顺序
+// computed watcher -> user watcher -> render watcher
+// 这样安排是有原因的，这样就能保证，在更新组件视图的时候，
+// computed 属性已经是最新值了，如果 render-watcher 排在 computed-watcher 前面，就会导致页面更新的时候 computed 值为旧数据。
 export default class Watcher {
   vm: Component;
   expression: string;
@@ -53,6 +57,7 @@ export default class Watcher {
     if (isRenderWatcher) {
       vm._watcher = this
     }
+    // 保存 Wathcer 实例
     vm._watchers.push(this)
     // options
     if (options) {
@@ -80,6 +85,7 @@ export default class Watcher {
     if (typeof expOrFn === 'function') {
       this.getter = expOrFn
     } else {
+      // 根据 key 转换为一个方法，调用该方法会返回 key 的值
       this.getter = parsePath(expOrFn)
       if (!this.getter) {
         this.getter = noop
@@ -124,6 +130,8 @@ export default class Watcher {
     } finally {
       // "touch" every property so they are all tracked as
       // dependencies for deep watching
+      // traverse 的逻辑是对一个对象做深层递归遍历，遍历过程中就是对一个子对象的访问，
+      // 会触发它们的 getter 过程，这样就可以收集到依赖，也就是订阅它们变化的 watcher
       if (this.deep) {
         traverse(value)
       }
@@ -151,9 +159,11 @@ export default class Watcher {
    * Clean up for dependency collection.
    */
   cleanupDeps () {
+    // 为什么需要deps订阅移除？
+    // newDeps 表示新添加的 Dep 实例数组，而 deps 表示上一次添加的 Dep 实例数组
     // Vue 是数据驱动的，所以每次数据变化都会重新 render，
     // vm._render() 方法又会再次执行，并再次触发数据的 getters，
-    // 所以需要deps订阅的移除
+    // 重新进行依赖收集时，有的数据可能已经不需要被观察，所以需要移除旧的订阅
     let i = this.deps.length
     while (i--) {
       const dep = this.deps[i]
